@@ -1,51 +1,49 @@
 workflows:
-ios-workflow:
-name: iOS Build
-max_build_duration: 60
-  
-  ```
-environment:
-  flutter: stable
-  xcode: latest
+  ios-workflow:
+    name: iOS Build
+    max_build_duration: 60
 
-scripts:
-  - name: Clean project
-    script: |
-      flutter clean
+    environment:
+      flutter: stable
+      xcode: latest
 
-  - name: Get Flutter packages
-    script: |
-      flutter pub get
+    scripts:
+      - name: Clean project
+        script: |
+          flutter clean
 
-  - name: Precache iOS (VERY IMPORTANT)
-    script: |
-      flutter precache --ios
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
 
-  - name: Install CocoaPods
-    script: |
-      cd ios
-      pod install
-      cd ..
+      - name: Precache iOS
+        script: |
+          flutter precache --ios
 
-  - name: Build iOS (Flutter)
-    script: |
-      flutter build ios --release --no-codesign
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install
+          cd ..
 
-  - name: Create IPA manually
-    script: |
-      mkdir -p build/ios/ipa
+      - name: Build iOS
+        script: |
+          flutter build ios --release --no-codesign
 
-      xcodebuild -workspace ios/Runner.xcworkspace \
-        -scheme Runner \
-        -configuration Release \
-        -sdk iphoneos \
-        -archivePath build/ios/archive/Runner.xcarchive archive
+      - name: Create IPA
+        script: |
+          mkdir -p build/ios/ipa
 
-      xcodebuild -exportArchive \
-        -archivePath build/ios/archive/Runner.xcarchive \
-        -exportOptionsPlist ios/ExportOptions.plist \
-        -exportPath build/ios/ipa
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/ios/archive/Runner.xcarchive archive
 
-artifacts:
-  - build/ios/ipa/*.ipa
-  ```
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath build/ios/ipa
+
+    artifacts:
+      - build/ios/ipa/*.ipa
