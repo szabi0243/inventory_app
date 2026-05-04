@@ -17,15 +17,23 @@ scripts:
     script: |
       flutter pub get
 
-  - name: Install CocoaPods
+  - name: Build iOS (Flutter proper)
     script: |
-      cd ios
-      pod install
-      cd ..
+      flutter build ios --release --no-codesign
 
-  - name: Build iOS (no codesign)
+  - name: Create IPA manually
     script: |
-      flutter build ipa --no-codesign
+      mkdir -p build/ios/ipa
+      xcodebuild -workspace ios/Runner.xcworkspace \
+        -scheme Runner \
+        -configuration Release \
+        -sdk iphoneos \
+        -archivePath build/ios/archive/Runner.xcarchive archive
+
+      xcodebuild -exportArchive \
+        -archivePath build/ios/archive/Runner.xcarchive \
+        -exportOptionsPlist ios/ExportOptions.plist \
+        -exportPath build/ios/ipa
 
 artifacts:
   - build/ios/ipa/*.ipa
