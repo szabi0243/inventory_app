@@ -1,40 +1,39 @@
-workflows:
-ios-workflow:
-name: iOS Build
-max_build_duration: 60
-  
-  ```
-environment:
-  flutter: stable
-  xcode: latest
+  :::writing{variant="standard" id="48291"}
+  workflows:
+    ios-workflow:
+      name: iOS Build
+      max_build_duration: 60
 
-scripts:
-  - name: Flutter clean
-    script: |
-      flutter clean
+      environment:
+        flutter: stable
+        xcode: latest
 
-  - name: Get Flutter packages
-    script: |
-      flutter pub get
+      scripts:
+        - name: Flutter clean
+          script: flutter clean
 
-  - name: Build iOS (Flutter proper)
-    script: |
-      flutter build ios --release --no-codesign
+        - name: Get Flutter packages
+          script: flutter pub get
 
-  - name: Create IPA manually
-    script: |
-      mkdir -p build/ios/ipa
-      xcodebuild -workspace ios/Runner.xcworkspace \
-        -scheme Runner \
-        -configuration Release \
-        -sdk iphoneos \
-        -archivePath build/ios/archive/Runner.xcarchive archive
+        - name: Build iOS (Flutter proper)
+          script: flutter build ios --release --no-codesign
 
-      xcodebuild -exportArchive \
-        -archivePath build/ios/archive/Runner.xcarchive \
-        -exportOptionsPlist ios/ExportOptions.plist \
-        -exportPath build/ios/ipa
+        - name: Create IPA manually
+          script: |
+            mkdir -p build/ios/ipa
+            xcodebuild -workspace ios/Runner.xcworkspace \
+              -scheme Runner \
+              -configuration Release \
+              -sdk iphoneos \
+              -archivePath build/ios/archive/Runner.xcarchive archive
+            
+            xcodebuild -exportArchive \
+              -archivePath build/ios/archive/Runner.xcarchive \
+              -exportOptionsPlist ios/ExportOptions.plist \
+              -exportPath build/ios/ipa
 
-artifacts:
-  - build/ios/ipa/*.ipa
-  ```
+      artifacts:
+        - build/ios/ipa/*.ipa
+  :::
+
+  ---
