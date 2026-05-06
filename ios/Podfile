@@ -1,4 +1,4 @@
-platform :ios, '14.0'
+platform :ios, '14.0' # [cite: 1]
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
@@ -9,32 +9,26 @@ project 'Runner', {
 }
 
 def flutter_root
-  generated_xcode_build_settings_path = File.expand_path(
-    File.join('..', 'Flutter', 'Generated.xcconfig'),
-    __FILE__
-  )
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
   unless File.exist?(generated_xcode_build_settings_path)
     raise "#{generated_xcode_build_settings_path} must exist. Run flutter pub get first"
   end
 
   File.foreach(generated_xcode_build_settings_path) do |line|
-    matches = line.match(/FLUTTER_ROOT=(.*)/)
+    matches = line.match(/FLUTTER_ROOT=(.*)/) # [cite: 2]
     return matches[1].strip if matches
   end
 
   raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}"
 end
 
-require File.expand_path(
-  File.join('packages', 'flutter_tools', 'bin', 'podhelper'),
-  flutter_root
-)
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
 
 flutter_ios_podfile_setup
 
 target 'Runner' do
   use_frameworks!
-  use_modular_headers!
+  use_modular_headers! # [cite: 3]
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
@@ -45,8 +39,6 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
+    flutter_additional_ios_build_settings(target) # [cite: 4]
   end
-endings(target)
-end
 end
