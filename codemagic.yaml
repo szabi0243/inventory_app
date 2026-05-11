@@ -1,64 +1,37 @@
-workflows:
-  ios-workflow:
-    name: iOS Build
-    max_build_duration: 60
-    instance_type: mac_mini_m1 # Javasolt az Apple Silicon a gyorsabb buildhez
+name: inventory_app
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
 
-    environment:
-      flutter: stable
-      xcode: latest
-      groups:
-        - certificates # Itt kellene lenniük a Codemagic-en beállított környezeti változóknak
+environment:
+  sdk: ^3.11.5
 
-    scripts:
-      - name: Clean project
-        script: |
-          flutter clean
+dependencies:
+  flutter:
+    sdk: flutter
 
-      - name: Get Flutter packages
-        script: |
-          flutter pub get
+  # UI és alap működés
+  cupertino_icons: ^1.0.8
+  mobile_scanner: ^7.2.0
+  http: ^1.6.0
+  connectivity_plus: ^7.1.1
+  workmanager: ^0.9.0+3
+  provider: ^6.1.5+1
+  path: ^1.9.0
 
-      - name: Precache iOS
-        script: |
-          flutter precache --ios
+  # Helyi adatbázis (Drift)
+  drift: ^2.33.0
+  drift_flutter: ^0.3.0
+  sqlite3_flutter_libs: ^0.6.0+eol
 
-      - name: Install CocoaPods
-        script: |
-          cd ios
-          pod install
-          cd ..
+# IDE KERÜLNEK A FEJLESZTŐI ESZKÖZÖK:
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  
+  flutter_lints: ^6.0.0
+  build_runner: ^2.15.0
+  drift_dev: ^2.33.0
 
-      - name: Build iOS IPA
-        script: |
-          # A --no-codesign csak akkor jó, ha tényleg nem akarsz aláírást, 
-          # de az IPA-hoz a Flutternek szüksége van az exportálási beállításokra.
-          flutter build ipa --release --export-method ad-hoc --no-codesign
-
-    artifacts:
-      - build/ios/ipa/*.ipa
-      - build/ios/iphoneos/*.app
-
-  android-workflow:
-    name: Android Build
-    max_build_duration: 60
-    environment:
-      flutter: stable
-
-    scripts:
-      - name: Clean project
-        script: |
-          flutter clean
-      - name: Get Flutter packages
-        script: |
-          flutter pub get
-      - name: Build Android APK
-        script: |
-          flutter build apk --release
-      - name: Build Android App Bundle
-        script: |
-          flutter build appbundle --release
-
-    artifacts:
-      - build/app/outputs/flutter-apk/*.apk
-      - build/app/outputs/bundle/release/*.aab
+flutter:
+  uses-material-design: true
