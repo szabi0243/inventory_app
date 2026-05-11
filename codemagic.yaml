@@ -26,24 +26,47 @@ workflows:
           pod install
           cd ..
 
-      - name: Build iOS
+      - name: Build iOS app without codesign
         script: |
-          flutter build ipa --release --no-codesign
+          flutter build ios --release --no-codesign
 
-      - name: Create IPA
+      - name: Create unsigned IPA manually
         script: |
-          mkdir -p build/ios/ipa
-
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath build/ios/archive/Runner.xcarchive archive
-
-          xcodebuild -exportArchive \
-            -archivePath build/ios/archive/Runner.xcarchive \
-            -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath build/ios/ipa
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -r Runner-unsigned.ipa Payload
+          cd ../../..
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - build/ios/ipa/Runner-unsigned.ipa
+      - build/ios/iphoneos/Runner.app
+
+
+  android-workflow:
+    name: Android Build
+    max_build_duration: 60
+
+    environment:
+      flutter: stable
+
+    scripts:
+      - name: Clean project
+        script: |
+          flutter clean
+
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+
+      - name: Build Android APK
+        script: |
+          flutter build apk --release
+
+      - name: Build Android App Bundle
+        script: |
+          flutter build appbundle --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/bundle/release/*.aab
