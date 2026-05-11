@@ -2,10 +2,13 @@ workflows:
   ios-workflow:
     name: iOS Build
     max_build_duration: 60
+    instance_type: mac_mini_m1 # Javasolt az Apple Silicon a gyorsabb buildhez
 
     environment:
       flutter: stable
       xcode: latest
+      groups:
+        - certificates # Itt kellene lenniük a Codemagic-en beállított környezeti változóknak
 
     scripts:
       - name: Clean project
@@ -26,27 +29,19 @@ workflows:
           pod install
           cd ..
 
-      - name: Build iOS app without codesign
+      - name: Build iOS IPA
         script: |
-          flutter build ios --release --no-codesign
-
-      - name: Create unsigned IPA manually
-        script: |
-          mkdir -p build/ios/ipa/Payload
-          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/Runner.app
-          cd build/ios/ipa
-          zip -r Runner-unsigned.ipa Payload
-          cd ../../..
+          # A --no-codesign csak akkor jó, ha tényleg nem akarsz aláírást, 
+          # de az IPA-hoz a Flutternek szüksége van az exportálási beállításokra.
+          flutter build ipa --release --export-method ad-hoc --no-codesign
 
     artifacts:
-      - build/ios/ipa/Runner-unsigned.ipa
-      - build/ios/iphoneos/Runner.app
-
+      - build/ios/ipa/*.ipa
+      - build/ios/iphoneos/*.app
 
   android-workflow:
     name: Android Build
     max_build_duration: 60
-
     environment:
       flutter: stable
 
@@ -54,15 +49,12 @@ workflows:
       - name: Clean project
         script: |
           flutter clean
-
       - name: Get Flutter packages
         script: |
           flutter pub get
-
       - name: Build Android APK
         script: |
           flutter build apk --release
-
       - name: Build Android App Bundle
         script: |
           flutter build appbundle --release
