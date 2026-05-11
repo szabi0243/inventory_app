@@ -1,37 +1,49 @@
-name: inventory_app
-description: "A new Flutter project."
-publish_to: 'none'
-version: 1.0.0+1
+workflows:
+  ios-workflow:
+    name: iOS Build
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Clean project
+        script: flutter clean
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Precache iOS
+        script: flutter precache --ios
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install
+          cd ..
+      - name: Build iOS app without codesign
+        script: flutter build ios --release --no-codesign
+      - name: Create unsigned IPA manually
+        script: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -r Runner-unsigned.ipa Payload
+          cd ../../..
+    artifacts:
+      - build/ios/ipa/Runner-unsigned.ipa
+      - build/ios/iphoneos/Runner.app
 
-environment:
-  sdk: ^3.11.5
-
-dependencies:
-  flutter:
-    sdk: flutter
-
-  # UI és alap működés
-  cupertino_icons: ^1.0.8
-  mobile_scanner: ^7.2.0
-  http: ^1.6.0
-  connectivity_plus: ^7.1.1
-  workmanager: ^0.9.0+3
-  provider: ^6.1.5+1
-  path: ^1.9.0
-
-  # Helyi adatbázis (Drift)
-  drift: ^2.33.0
-  drift_flutter: ^0.3.0
-  sqlite3_flutter_libs: ^0.6.0+eol
-
-# IDE KERÜLNEK A FEJLESZTŐI ESZKÖZÖK:
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  
-  flutter_lints: ^6.0.0
-  build_runner: ^2.15.0
-  drift_dev: ^2.33.0
-
-flutter:
-  uses-material-design: true
+  android-workflow:
+    name: Android Build
+    max_build_duration: 60
+    environment:
+      flutter: stable
+    scripts:
+      - name: Clean project
+        script: flutter clean
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Build Android APK
+        script: flutter build apk --release
+      - name: Build Android App Bundle
+        script: flutter build appbundle --release
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/bundle/release/*.aab
