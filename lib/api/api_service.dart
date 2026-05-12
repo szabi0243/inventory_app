@@ -1,19 +1,16 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const baseUrl = "http://YOUR_BACKEND_URL";
+  static const String apiUrl = "API-URL IDE!!!!!!!!";
 
-  static Future<bool> send(String endpoint, Map data) async {
-    try {
-      final res = await http.post(
-        Uri.parse("$baseUrl/$endpoint"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data),
-      );
-      return res.statusCode == 200 || res.statusCode == 201;
-    } catch (_) {
-      return false;
+  Future<void> sendDataToSql(String code) async {
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      body: {'barcode': code},
+    );
+
+    if (response.statusCode == 200) {
+      print("Sikeres mentés az adatbázisba!");
     }
   }
 }

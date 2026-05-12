@@ -24,9 +24,9 @@ android {
         applicationId = "com.example.inventory_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion 21
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        versionCode = flutter.versionCode.toInteger()
         versionName = flutter.versionName
     }
 
