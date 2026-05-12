@@ -23,28 +23,28 @@ class ScannerPage extends StatefulWidget {
 
 class _ScannerPageState extends State<ScannerPage> {
   CameraController? _cameraController;
-  MobileScannerController? _scannerController;
+  final MobileScannerController _scannerController = MobileScannerController();
 
   bool _isInitializing = true;
   bool _isProcessing = false;
 
   String? _lastCode;
-  String? _lastPngPath;
-  String? _errorMessage;
+  String? _savedImagePath;
+  String? _message;
 
   @override
   void initState() {
     super.initState();
-    _initializeScanner();
+    _initCamera();
   }
 
-  Future<void> _initializeScanner() async {
+  Future<void> _initCamera() async {
     try {
       final cameras = await availableCameras();
 
       if (cameras.isEmpty) {
         setState(() {
-          _errorMessage = 'Nem található kamera az eszközön.';
+          _message = 'Nem található kamera.';
           _isInitializing = false;
         });
         return;
@@ -55,84 +55,88 @@ class _ScannerPageState extends State<ScannerPage> {
         orElse: () => cameras.first,
       );
 
-      final cameraController = CameraController(
+      final controller = CameraController(
         backCamera,
         ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
-      await cameraController.initialize();
-
-      _cameraController = cameraController;
-      _scannerController = MobileScannerController();
+      await controller.initialize();
 
       if (!mounted) return;
 
       setState(() {
+        _cameraController = controller;
         _isInitializing = false;
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _errorMessage = 'Kamera inicializálási hiba: $e';
+        _message = 'Kamera inicializálási hiba: $e';
         _isInitializing = false;
       });
     }
   }
 
-  Future<File> _convertCapturedImageToPng(XFile capturedImage) async {
-    final bytes = await capturedImage.readAsBytes();
-    final decodedImage = img.decodeImage(bytes);
+  Future<File> _saveAsPng(XFile photo) async {
+    final bytes = await photo.readAsBytes();
+    final decoded = img.decodeImage(bytes);
 
-    if (decodedImage == null) {
+    if (decoded == null) {
       throw Exception('A kép nem dekódolható.');
     }
 
-    final pngBytes = img.encodePng(decodedImage);
+    final pngBytes = img.encodePng(decoded);
+    final directory = await getApplicationDocumentsDirectory();
 
-    final directory = await getTemporaryDirectory();
-    final pngPath =
-        '${directory.path}/scan_${DateTime.now().millisecondsSinceEpoch}.png';
+    final file = File(
+      '${directory.path}/scan_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
 
-    final pngFile = File(pngPath);
-    await pngFile.writeAsBytes(pngBytes, flush: true);
-
-    return pngFile;
+    await file.writeAsBytes(pngBytes, flush: true);
+    return file;
   }
 
-  Future<void> _scanFromPhoto() async {
+  Future<void> _captureAndScan() async {
     if (_isProcessing) return;
 
     final camera = _cameraController;
-    final scanner = _scannerController;
 
-    if (camera == null || scanner == null || !camera.value.isInitialized) {
+    if (camera == null || !camera.value.isInitialized) {
       setState(() {
-        _errorMessage = 'A kamera még nem áll készen.';
+        _message = 'A kamera még nem áll készen.';
       });
       return;
     }
 
     setState(() {
       _isProcessing = true;
-      _errorMessage = null;
+      _message = 'Kép készítése...';
       _lastCode = null;
-      _lastPngPath = null;
+      _savedImagePath = null;
     });
 
     try {
-      final capturedImage = await camera.takePicture();
-      final pngFile = await _convertCapturedImageToPng(capturedImage);
+      final photo = await camera.takePicture();
 
-      final BarcodeCapture? result = await scanner.analyzeImage(pngFile.path);
+      setState(() {
+        _message = 'Kép PNG-vé alakítása...';
+      });
+
+      final pngFile = await _saveAsPng(photo);
+
+      setState(() {
+        _savedImagePath = pngFile.path;
+        _message = 'Kód keresése a képen...';
+      });
+
+      final result = await _scannerController.analyzeImage(pngFile.path);
 
       if (result == null || result.barcodes.isEmpty) {
         setState(() {
-          _errorMessage =
-          'Nem találtam QR-kódot vagy vonalkódot a képen. Próbáld közelebbről, jobb fénynél.';
-          _lastPngPath = pngFile.path;
+          _message = 'Nem található QR-kód vagy vonalkód a képen.';
         });
         return;
       }
@@ -145,8 +149,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
       if (code == null) {
         setState(() {
-          _errorMessage = 'A kód felismerődött, de nincs kiolvasható értéke.';
-          _lastPngPath = pngFile.path;
+          _message = 'A kód felismerődött, de nincs kiolvasható értéke.';
         });
         return;
       }
@@ -163,7 +166,7 @@ class _ScannerPageState extends State<ScannerPage> {
 
       setState(() {
         _lastCode = code;
-        _lastPngPath = pngFile.path;
+        _message = 'Sikeres beolvasás és mentés.';
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -173,7 +176,7 @@ class _ScannerPageState extends State<ScannerPage> {
       if (!mounted) return;
 
       setState(() {
-        _errorMessage = 'Beolvasási hiba: $e';
+        _message = 'Hiba történt: $e';
       });
     } finally {
       if (mounted) {
@@ -187,7 +190,7 @@ class _ScannerPageState extends State<ScannerPage> {
   @override
   void dispose() {
     _cameraController?.dispose();
-    _scannerController?.dispose();
+    _scannerController.dispose();
     super.dispose();
   }
 
@@ -197,79 +200,73 @@ class _ScannerPageState extends State<ScannerPage> {
 
     if (_isInitializing) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_errorMessage != null && camera == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Scanner'),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kép alapú scanner'),
+        title: const Text('Scan'),
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
+          Positioned.fill(
             child: camera != null && camera.value.isInitialized
                 ? CameraPreview(camera)
                 : const Center(
               child: Text('Kamera nem elérhető.'),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
+
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                if (_lastCode != null)
-                  Text(
-                    'Utolsó beolvasott kód: $_lastCode',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                if (_lastPngPath != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'PNG fájl: $_lastPngPath',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isProcessing ? null : _scanFromPhoto,
-                    icon: const Icon(Icons.camera_alt),
-                    label: Text(
-                      _isProcessing
-                          ? 'Kép feldolgozása...'
-                          : 'Kép készítése és beolvasása',
+                if (_message != null)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.65),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: Text(
+                      _message!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+
+                if (_lastCode != null)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Beolvasott kód: $_lastCode',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+
+                ElevatedButton.icon(
+                  onPressed: _isProcessing ? null : _captureAndScan,
+                  icon: const Icon(Icons.camera_alt),
+                  label: Text(
+                    _isProcessing
+                        ? 'Feldolgozás...'
+                        : 'Kép készítése és beolvasása',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 56),
                   ),
                 ),
               ],
