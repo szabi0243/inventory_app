@@ -1,10 +1,11 @@
 name: inventory_app
 description: "A new Flutter project."
 publish_to: 'none'
+
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.5
+  sdk: ">=3.3.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -19,12 +20,14 @@ dependencies:
   provider: ^6.1.5+1
   path: ^1.9.0
 
-  # Helyi adatbázis (Drift)
+  # Adatbázis (SQFLITE - ez hiányzott!)
+  sqflite: ^2.4.1
+
+  # (Opcionális - ha később Drift-et akarsz használni)
   drift: ^2.33.0
   drift_flutter: ^0.3.0
   sqlite3_flutter_libs: ^0.6.0+eol
 
-# IDE KERÜLNEK A FEJLESZTŐI ESZKÖZÖK:
 dev_dependencies:
   flutter_test:
     sdk: flutter
