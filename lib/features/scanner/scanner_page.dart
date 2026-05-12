@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,10 +14,7 @@ import '../../models/product.dart';
 class ScannerPage extends StatefulWidget {
   final AppDB db;
 
-  const ScannerPage({
-    super.key,
-    required this.db,
-  });
+  const ScannerPage({super.key, required this.db});
 
   @override
   State<ScannerPage> createState() => _ScannerPageState();
@@ -23,14 +22,15 @@ class ScannerPage extends StatefulWidget {
 
 class _ScannerPageState extends State<ScannerPage> {
   CameraController? _cameraController;
-  final MobileScannerController _scannerController = MobileScannerController();
+  final MobileScannerController _barcodeReader = MobileScannerController();
 
-  bool _isInitializing = true;
+  bool _isLoading = true;
   bool _isProcessing = false;
 
-  String? _lastCode;
-  String? _savedImagePath;
   String? _message;
+  String? _lastCode;
+  String? _lastProductName;
+  String? _lastImagePath;
 
   @override
   void initState() {
@@ -45,7 +45,7 @@ class _ScannerPageState extends State<ScannerPage> {
       if (cameras.isEmpty) {
         setState(() {
           _message = 'Nem található kamera.';
-          _isInitializing = false;
+          _isLoading = false;
         });
         return;
       }
@@ -68,27 +68,27 @@ class _ScannerPageState extends State<ScannerPage> {
 
       setState(() {
         _cameraController = controller;
-        _isInitializing = false;
+        _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _message = 'Kamera inicializálási hiba: $e';
-        _isInitializing = false;
+        _message = 'Kamera hiba: $e';
+        _isLoading = false;
       });
     }
   }
 
-  Future<File> _saveAsPng(XFile photo) async {
+  Future<File> _convertToPng(XFile photo) async {
     final bytes = await photo.readAsBytes();
-    final decoded = img.decodeImage(bytes);
+    final decodedImage = img.decodeImage(bytes);
 
-    if (decoded == null) {
-      throw Exception('A kép nem dekódolható.');
+    if (decodedImage == null) {
+      throw Exception('A kép nem feldolgozható.');
     }
 
-    final pngBytes = img.encodePng(decoded);
+    final pngBytes = img.encodePng(decodedImage);
     final directory = await getApplicationDocumentsDirectory();
 
     final file = File(
@@ -99,7 +99,52 @@ class _ScannerPageState extends State<ScannerPage> {
     return file;
   }
 
-  Future<void> _captureAndScan() async {
+  String? _firstReadableCode(BarcodeCapture result) {
+    for (final barcode in result.barcodes) {
+      final value = barcode.rawValue;
+      if (value != null && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  Future<String> _findProductName(String code) async {
+    try {
+      final uri = Uri.parse(
+        'https://world.openfoodfacts.org/api/v2/product/$code.json',
+      );
+
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        return 'Ismeretlen termék';
+      }
+
+      final data = jsonDecode(response.body);
+
+      if (data['status'] != 1) {
+        return 'Ismeretlen termék';
+      }
+
+      final product = data['product'];
+
+      final name = product['product_name'] ??
+          product['product_name_hu'] ??
+          product['generic_name'] ??
+          product['brands'];
+
+      if (name == null || name.toString().trim().isEmpty) {
+        return 'Ismeretlen termék';
+      }
+
+      return name.toString().trim();
+    } catch (_) {
+      return 'Ismeretlen termék';
+    }
+  }
+
+  Future<void> _takePhotoAndScan() async {
     if (_isProcessing) return;
 
     final camera = _cameraController;
@@ -115,24 +160,25 @@ class _ScannerPageState extends State<ScannerPage> {
       _isProcessing = true;
       _message = 'Kép készítése...';
       _lastCode = null;
-      _savedImagePath = null;
+      _lastProductName = null;
+      _lastImagePath = null;
     });
 
     try {
       final photo = await camera.takePicture();
 
       setState(() {
-        _message = 'Kép PNG-vé alakítása...';
+        _message = 'Kép mentése PNG formátumban...';
       });
 
-      final pngFile = await _saveAsPng(photo);
+      final pngFile = await _convertToPng(photo);
 
       setState(() {
-        _savedImagePath = pngFile.path;
-        _message = 'Kód keresése a képen...';
+        _lastImagePath = pngFile.path;
+        _message = 'QR-kód / vonalkód keresése a képen...';
       });
 
-      final result = await _scannerController.analyzeImage(pngFile.path);
+      final result = await _barcodeReader.analyzeImage(pngFile.path);
 
       if (result == null || result.barcodes.isEmpty) {
         setState(() {
@@ -141,22 +187,24 @@ class _ScannerPageState extends State<ScannerPage> {
         return;
       }
 
-      final code = result.barcodes
-          .map((barcode) => barcode.rawValue)
-          .whereType<String>()
-          .where((value) => value.trim().isNotEmpty)
-          .firstOrNull;
+      final code = _firstReadableCode(result);
 
       if (code == null) {
         setState(() {
-          _message = 'A kód felismerődött, de nincs kiolvasható értéke.';
+          _message = 'A kód felismerődött, de nem olvasható ki.';
         });
         return;
       }
 
+      setState(() {
+        _message = 'Termék keresése...';
+      });
+
+      final productName = await _findProductName(code);
+
       final product = Product(
         code: code,
-        name: 'Ismeretlen termék',
+        name: productName,
         createdAt: DateTime.now(),
       );
 
@@ -166,11 +214,14 @@ class _ScannerPageState extends State<ScannerPage> {
 
       setState(() {
         _lastCode = code;
+        _lastProductName = productName;
         _message = 'Sikeres beolvasás és mentés.';
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Mentve: $code')),
+        SnackBar(
+          content: Text('Mentve: $productName ($code)'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -190,7 +241,7 @@ class _ScannerPageState extends State<ScannerPage> {
   @override
   void dispose() {
     _cameraController?.dispose();
-    _scannerController.dispose();
+    _barcodeReader.dispose();
     super.dispose();
   }
 
@@ -198,7 +249,7 @@ class _ScannerPageState extends State<ScannerPage> {
   Widget build(BuildContext context) {
     final camera = _cameraController;
 
-    if (_isInitializing) {
+    if (_isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -241,7 +292,7 @@ class _ScannerPageState extends State<ScannerPage> {
                     ),
                   ),
 
-                if (_lastCode != null)
+                if (_lastCode != null && _lastProductName != null)
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 12),
@@ -251,14 +302,14 @@ class _ScannerPageState extends State<ScannerPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      'Beolvasott kód: $_lastCode',
+                      'Termék: $_lastProductName\nKód: $_lastCode',
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
 
                 ElevatedButton.icon(
-                  onPressed: _isProcessing ? null : _captureAndScan,
+                  onPressed: _isProcessing ? null : _takePhotoAndScan,
                   icon: const Icon(Icons.camera_alt),
                   label: Text(
                     _isProcessing
