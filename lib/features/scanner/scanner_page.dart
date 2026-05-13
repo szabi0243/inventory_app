@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../db/app_db.dart';
 import '../../models/product.dart';
@@ -109,6 +110,30 @@ class _ScannerPageState extends State<ScannerPage> {
     return null;
   }
 
+  bool _isUrl(String value) {
+    final text = value.trim();
+    final uri = Uri.tryParse(text);
+
+    if (uri == null) return false;
+
+    return uri.hasScheme &&
+        (uri.scheme.toLowerCase() == 'http' ||
+            uri.scheme.toLowerCase() == 'https');
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url.trim());
+
+    final opened = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!opened) {
+      throw Exception('A link nem nyitható meg: $url');
+    }
+  }
+
   Future<String> _findProductName(String code) async {
     try {
       final uri = Uri.parse(
@@ -129,8 +154,8 @@ class _ScannerPageState extends State<ScannerPage> {
 
       final product = data['product'];
 
-      final name = product['product_name'] ??
-          product['product_name_hu'] ??
+      final name = product['product_name_hu'] ??
+          product['product_name'] ??
           product['generic_name'] ??
           product['brands'];
 
@@ -193,6 +218,24 @@ class _ScannerPageState extends State<ScannerPage> {
         setState(() {
           _message = 'A kód felismerődött, de nem olvasható ki.';
         });
+        return;
+      }
+
+      if (_isUrl(code)) {
+        setState(() {
+          _lastCode = code;
+          _lastProductName = 'Link';
+          _message = 'QR-link felismerve, megnyitás...';
+        });
+
+        await _openUrl(code);
+
+        if (!mounted) return;
+
+        setState(() {
+          _message = 'A link megnyitva.';
+        });
+
         return;
       }
 
@@ -268,7 +311,6 @@ class _ScannerPageState extends State<ScannerPage> {
               child: Text('Kamera nem elérhető.'),
             ),
           ),
-
           Positioned(
             left: 16,
             right: 16,
@@ -291,7 +333,6 @@ class _ScannerPageState extends State<ScannerPage> {
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
-
                 if (_lastCode != null && _lastProductName != null)
                   Container(
                     width: double.infinity,
@@ -302,12 +343,11 @@ class _ScannerPageState extends State<ScannerPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      'Termék: $_lastProductName\nKód: $_lastCode',
+                      'Eredmény: $_lastProductName\nKód/link: $_lastCode',
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
-
                 ElevatedButton.icon(
                   onPressed: _isProcessing ? null : _takePhotoAndScan,
                   icon: const Icon(Icons.camera_alt),
