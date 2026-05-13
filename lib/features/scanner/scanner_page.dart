@@ -251,7 +251,7 @@ class _ScannerPageState extends State<ScannerPage> {
         createdAt: DateTime.now(),
       );
 
-      await widget.db.insertProduct(product);
+      await widget.db.addOrUpdateProduct(product);
 
       if (!mounted) return;
 

@@ -35,7 +35,10 @@ class _InventoryPageState extends State<InventoryPage> {
           final p = products[index];
 
           return ListTile(
-            title: Text(p.name),
+            title: Text(
+              '${p.quantity}x ${p.name}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: Text(p.code),
             trailing: Text(
               p.createdAt.toLocal().toString().split('.')[0],
